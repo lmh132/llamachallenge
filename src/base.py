@@ -72,7 +72,7 @@ def create_session():
 def startup():
     initialize_models()
     setup_vector_db()
-    ingest_document()
+    #ingest_document()
     create_agent()
     create_session()
 
@@ -91,12 +91,8 @@ def chat(request: ChatRequest):
     )
 
     def stream():
-        print(">>> Streaming started")  # DEBUG LINE
         for log in AgentEventLogger().log(response):
-            print(">>> log:", log)  # DEBUG LINE
-            if hasattr(log, "delta") and log.delta:
-                yield log.delta
-            elif hasattr(log, "message"):
-                yield log.message + "\n"
+            yield str(log)
+
 
     return StreamingResponse(stream(), media_type="text/plain")
