@@ -5,6 +5,17 @@ from llama_stack_client import Agent, AgentEventLogger, RAGDocument, LlamaStackC
 from llama_stack_client.types import Model
 import re
 import json
+import pdfplumber
+import io
+
+def extract_text_from_pdf(bytes_data: bytes) -> str:
+    text = ""
+    with pdfplumber.open(io.BytesIO(bytes_data)) as pdf:
+        for page in pdf.pages:
+            text += page.extract_text() or ""
+            text += "\n"
+    return text
+
 
 # --- Constants ---
 BASE_URL = "http://localhost:8321"
@@ -220,3 +231,23 @@ def chat(request: ChatRequest):
         return {"data": parsed}
     except json.JSONDecodeError:
         return {"error": "Could not parse response as JSON", "raw": output}
+    
+
+@app.post("/upload-pdf")
+async def upload_pdf(file: UploadFile = File(...)):
+    contents = await file.read()
+    extracted_text = extract_text_from_pdf(contents)
+    prompt = f"Summarize this:\n{extracted_text}"
+
+    response = tutor_agent.create_turn(
+        messages=[{"role": "user", "content": prompt}],
+        session_id=tutor_session_id,
+        stream=True,
+    )
+
+    def stream():
+        for log in AgentEventLogger().log(response):
+            yield str(log).strip()
+
+    return StreamingResponse(stream(), media_type="text/plain")
+
