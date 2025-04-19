@@ -72,7 +72,7 @@ def create_session():
 def startup():
     initialize_models()
     setup_vector_db()
-    #ingest_document()
+    ingest_document()
     create_agent()
     create_session()
 
