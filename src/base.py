@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from llama_stack_client import Agent, AgentEventLogger, RAGDocument, LlamaStackClient
 from llama_stack_client.types import Model
-import threading
+import re
 
 # --- Constants ---
 BASE_URL = "http://localhost:8321"
@@ -92,7 +92,9 @@ def chat(request: ChatRequest):
 
     def stream():
         for log in AgentEventLogger().log(response):
-            yield str(log)
+            line = str(log).strip()
+
+            yield line
 
 
     return StreamingResponse(stream(), media_type="text/plain")
