@@ -92,7 +92,9 @@ def chat(request: ChatRequest):
 
     def stream():
         for log in AgentEventLogger().log(response):
-            yield str(log)
+            line = str(log).strip()
+
+            yield line
 
 
     return StreamingResponse(stream(), media_type="text/plain")
