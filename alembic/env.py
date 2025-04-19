@@ -48,21 +48,26 @@ def run_migrations_online():
         poolclass=pool.NullPool,
     )
 
-    async def run_migrations(connection):
-        context.configure(connection=connection, target_metadata=target_metadata)
+    # 1) Define a **synchronous** migration runner
+    def do_run_migrations(sync_conn):
+        context.configure(
+            connection=sync_conn,
+            target_metadata=target_metadata,
+        )
+        with context.begin_transaction():
+            context.run_migrations()
 
-        async with context.begin_transaction():
-            await context.run_migrations()
-
-    import asyncio
+    # 2) Define an **async** wrapper that uses run_sync()
     async def run():
         async with connectable.connect() as connection:
-            await connection.run_sync(run_migrations)
-
+            # run_sync will call our sync function under the hood
+            await connection.run_sync(do_run_migrations)
         await connectable.dispose()
 
+    # 3) Actually execute it
     import asyncio
     asyncio.run(run())
+
 if context.is_offline_mode():
     run_migrations_offline()
 else:
