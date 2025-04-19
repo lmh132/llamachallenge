@@ -10,7 +10,7 @@ from backend.ocr import run_ocr
 from backend.llm import extract_concepts, generate_quiz, refine_graph
 
 # Dependency to get DB session
-def get_db() -> AsyncSession:
+async def get_db() -> AsyncSession:
     async with SessionLocal() as session:
         yield session
 

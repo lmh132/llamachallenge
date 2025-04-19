@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_USER: ben
       POSTGRES_PASSWORD: llama
-      POSTGRES_DB: devdb
+      POSTGRES_DB: llama
     ports:
       - "5432:5432"
     volumes:
