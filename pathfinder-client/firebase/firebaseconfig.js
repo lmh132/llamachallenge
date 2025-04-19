@@ -8,13 +8,13 @@ import { getAuth } from "firebase/auth";
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyBMVdcyfgPDWMZ-HCEPZ1Tuo7fwtS4E4K8",
-  authDomain: "pathfinder-c8394.firebaseapp.com",
-  projectId: "pathfinder-c8394",
-  storageBucket: "pathfinder-c8394.firebasestorage.app",
-  messagingSenderId: "889409827246",
-  appId: "1:889409827246:web:4ab729037e832ab329583f",
-  measurementId: "G-FT1S23TDKB"
+  apiKey: process.env.apiKey,
+  authDomain: process.env.authDomain,
+  projectId: process.env.projectId,
+  storageBucket: process.env.storageBucket,
+  messagingSenderId: process.env.messagingSenderId,
+  appId: process.env.appId,
+  measurementId: process.env.measurementId
 };
 
 // Initialize Firebase
