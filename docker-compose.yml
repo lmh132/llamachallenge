@@ -6,11 +6,26 @@ services:
     environment:
       POSTGRES_USER: ben
       POSTGRES_PASSWORD: llama
-      POSTGRES_DB: devdb
+      POSTGRES_DB: llama
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ben -d llama"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://ben:llama@db/llama
 
 volumes:
   postgres_data:
