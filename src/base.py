@@ -6,6 +6,8 @@ from llama_stack_client.types import Model
 import fitz  # PyMuPDF
 import io
 import pdfplumber
+from fastapi import HTTPException
+import aiohttp 
 
 def extract_text_from_pdf(bytes_data: bytes) -> str:
     text = ""
@@ -111,8 +113,58 @@ def chat(request: ChatRequest):
 
 
 @app.post("/upload-pdf")
-async def upload_pdf(file: UploadFile = File(...)):
-    contents = await file.read()
+async def upload_pdf(
+    file: UploadFile = File(None),
+    url: str = Form(None)
+):
+    if url:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        raise HTTPException(status_code=400, detail="Failed to fetch PDF from URL.")
+                    contents = await resp.read()
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error fetching URL: {str(e)}")
+    elif file:
+        contents = await file.read()
+    else:
+        raise HTTPException(status_code=400, detail="Either a file or a URL must be provided.")
+
+    extracted_text = extract_text_from_pdf(contents)
+    prompt = f"Summarize this:\n{extracted_text}"
+
+    response = agent.create_turn(
+        messages=[{"role": "user", "content": prompt}],
+        session_id=session_id,
+        stream=True,
+    )
+
+    def stream():
+        for log in AgentEventLogger().log(response):
+            yield str(log).strip()
+
+    return StreamingResponse(stream(), media_type="text/plain")@app.post("/upload-pdf")
+
+@app.post("/upload-pdf")
+async def upload_pdf(
+    file: UploadFile = File(None),
+    url: str = Form(None)
+):
+    if url:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        raise HTTPException(status_code=400, detail="Failed to fetch PDF from URL.")
+                    contents = await resp.read()
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error fetching URL: {str(e)}")
+    elif file:
+        contents = await file.read()
+    else:
+        raise HTTPException(status_code=400, detail="Either a file or a URL must be provided.")
+
     extracted_text = extract_text_from_pdf(contents)
     prompt = f"Summarize this:\n{extracted_text}"
 
