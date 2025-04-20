@@ -3,8 +3,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from llama_stack_client import Agent, AgentEventLogger, RAGDocument, LlamaStackClient
 from llama_stack_client.types import Model
-import re
+from crud import *
 import json
+
+import sqlalchemy as sa
+from crud import *
+from tables import engine, conn
+from models import UserCreate
 
 # --- Constants ---
 BASE_URL = "http://localhost:8321"
@@ -220,3 +225,16 @@ def chat(request: ChatRequest):
         return {"data": parsed}
     except json.JSONDecodeError:
         return {"error": "Could not parse response as JSON", "raw": output}
+
+engine = sa.create_engine("sqlite:///./test.db", connect_args={"check_same_thread": False})
+conn = engine.connect()
+
+@app.post("/createuser")
+def api_create_user(user: UserCreate):
+    user_id = create_user(
+        engine,
+        username=user.username,
+        email=user.email,
+        hashed_password=user.password  # Note: In production, you should hash this!
+    )
+    return {"user_id": user_id, "username": user.username}
