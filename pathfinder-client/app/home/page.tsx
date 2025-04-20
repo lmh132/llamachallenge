@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useContext } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { CalendarIcon, FilterIcon, PlusCircle, Search, SortAsc, SortDesc, Tag } from "lucide-react"
+import { CalendarIcon, FilterIcon, LogOut, PlusCircle, Search, SortAsc, SortDesc, Tag } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
@@ -18,7 +18,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-
+import { useRouter } from "next/navigation"
+import { AuthContext } from "@/contexts/AuthContext"
 // Sample data for graphs
 const initialGraphs = [
   {
@@ -66,28 +67,39 @@ const initialGraphs = [
 ]
 
 // Get all unique tags from the graphs
-const allTags = Array.from(new Set(initialGraphs.flatMap((graph) => graph.tags)))
 
 export default function Home() {
-  const [graphs, setGraphs] = useState(initialGraphs)
+  const { logout, graphs, addGraph } = useContext(AuthContext);
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [sortBy, setSortBy] = useState<"date" | "title">("date")
+  const [newGraphTitle, setNewGraphTitle] = useState("")
+  const [newGraphDescription, setNewGraphDescription] = useState("")
+  const [newGraphFile, setNewGraphFile] = useState<File | null>(null)
+  const [newGraphTags, setNewGraphTags] = useState<string[]>([])
+  const [newTagInput, setNewTagInput] = useState("")
+  const router = useRouter()
+
+  // Get all unique tags from the graphs
+  const allTags = Array.from(new Set(graphs.flatMap((graph) => graph.tags)))
+
+  const handleToggleTag = (tag: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    )
+  }
 
   // Filter and sort graphs
   const filteredGraphs = graphs
     .filter((graph) => {
-      // Filter by search query
       const matchesSearch = graph.title.toLowerCase().includes(searchQuery.toLowerCase())
-
-      // Filter by selected tags
       const matchesTags = selectedTags.length === 0 || selectedTags.some((tag) => graph.tags.includes(tag))
-
       return matchesSearch && matchesTags
     })
     .sort((a, b) => {
-      // Sort by selected field
       if (sortBy === "date") {
         return sortOrder === "asc"
           ? new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -97,26 +109,41 @@ export default function Home() {
       }
     })
 
-  // Toggle tag selection
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
+  const handleLogout = () => {
+    logout()
+    router.push('/login')
   }
 
-  // Toggle sort order
-  const toggleSortOrder = () => {
-    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
-  }
-
-  // Change sort field
-  const changeSortBy = (field: "date" | "title") => {
-    setSortBy(field)
+  const handleCreateGraph = () => {
+    const newGraph = {
+      title: newGraphTitle,
+      image: "/placeholder.svg?height=200&width=300",
+      tags: newGraphTags,
+    };
+    
+    addGraph(newGraph);
+    
+    setNewGraphTitle("");
+    setNewGraphDescription("");
+    setNewGraphFile(null);
+    setNewGraphTags([]);
+    setNewTagInput("");
+    
+    const newGraphId = Math.max(...graphs.map(g => g.id)) + 1;
+    router.push(`/create/${newGraphId}`);
   }
 
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
         <div className="w-full max-w-full flex items-center justify-between h-16 px-4">
-          <h1 className="text-xl font-bold">Welcome Back, Evan</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-bold">Welcome Back, Evan</h1>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
+          </div>
           <Dialog>
             <DialogTrigger asChild>
               <Button>
@@ -124,16 +151,100 @@ export default function Home() {
                 Create New Graph
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>Create New Graph</DialogTitle>
                 <DialogDescription>Create a new graph visualization for your data.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <p>Graph creation form would go here.</p>
-                <Input type="text" placeholder="Graph Title" />
-                <Input type="text" placeholder="Graph Description" />
-                <Button>Create Graph</Button>
+                <div className="grid gap-2">
+                  <label htmlFor="title" className="text-sm font-medium">Title</label>
+                  <Input
+                    id="title"
+                    value={newGraphTitle}
+                    onChange={(e) => setNewGraphTitle(e.target.value)}
+                    placeholder="Enter graph title"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="description" className="text-sm font-medium">Description</label>
+                  <Input
+                    id="description"
+                    value={newGraphDescription}
+                    onChange={(e) => setNewGraphDescription(e.target.value)}
+                    placeholder="Enter graph description"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="file" className="text-sm font-medium">Upload PDF</label>
+                  <Input
+                    id="file"
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => setNewGraphFile(e.target.files?.[0] || null)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Tags</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {newGraphTags.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant="secondary"
+                        className="cursor-pointer"
+                        onClick={() => setNewGraphTags(newGraphTags.filter(t => t !== tag))}
+                      >
+                        {tag} ×
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={newTagInput}
+                      onChange={(e) => setNewTagInput(e.target.value)}
+                      placeholder="Add new tag"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newTagInput.trim()) {
+                          setNewGraphTags([...newGraphTags, newTagInput.trim()]);
+                          setNewTagInput('');
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (newTagInput.trim()) {
+                          setNewGraphTags([...newGraphTags, newTagInput.trim()]);
+                          setNewTagInput('');
+                        }
+                      }}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    <div className="text-sm text-muted-foreground mb-1 w-full">Suggested tags:</div>
+                    {allTags.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant={newGraphTags.includes(tag) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => {
+                          if (newGraphTags.includes(tag)) {
+                            setNewGraphTags(newGraphTags.filter(t => t !== tag));
+                          } else {
+                            setNewGraphTags([...newGraphTags, tag]);
+                          }
+                        }}
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <Button onClick={handleCreateGraph}>
+                  Create Graph
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -168,7 +279,7 @@ export default function Home() {
                           key={tag}
                           variant={selectedTags.includes(tag) ? "default" : "outline"}
                           className="cursor-pointer"
-                          onClick={() => toggleTag(tag)}
+                          onClick={() => handleToggleTag(tag)}
                         >
                           {tag}
                         </Badge>
@@ -185,17 +296,17 @@ export default function Home() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => changeSortBy("date")}>
+                  <DropdownMenuItem onClick={() => setSortBy("date")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     <span>Sort by Date</span>
                     {sortBy === "date" && <span className="ml-auto">✓</span>}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => changeSortBy("title")}>
+                  <DropdownMenuItem onClick={() => setSortBy("title")}>
                     <Tag className="mr-2 h-4 w-4" />
                     <span>Sort by Title</span>
                     {sortBy === "title" && <span className="ml-auto">✓</span>}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={toggleSortOrder}>
+                  <DropdownMenuItem onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}>
                     {sortOrder === "asc" ? <SortAsc className="mr-2 h-4 w-4" /> : <SortDesc className="mr-2 h-4 w-4" />}
                     <span>{sortOrder === "asc" ? "Ascending" : "Descending"}</span>
                   </DropdownMenuItem>
@@ -208,7 +319,7 @@ export default function Home() {
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground">Filtered by:</span>
               {selectedTags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="cursor-pointer" onClick={() => toggleTag(tag)}>
+                <Badge key={tag} variant="secondary" className="cursor-pointer" onClick={() => handleToggleTag(tag)}>
                   {tag}
                   <span className="ml-1">×</span>
                 </Badge>
