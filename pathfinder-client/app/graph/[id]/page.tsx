@@ -9,7 +9,6 @@ import { ArrowLeft } from "lucide-react";
 import { useGraph } from '@/contexts/GraphContext';
 
 // need to import the vis network css in order to show tooltip
-
 const Graph = dynamic(() => import("react-graph-vis"), {
   ssr: false,
 });
