@@ -9,9 +9,13 @@ import json
 import sqlalchemy as sa
 from crud import *
 from tables import engine, conn
-from models import UserCreate
+from models import *
 import pdfplumber
 import io
+
+engine = sa.create_engine("sqlite:///./test.db", connect_args={"check_same_thread": False})
+
+user_id = "bruhbruhrbruh"
 
 def extract_text_from_pdf(bytes_data: bytes) -> str:
     text = ""
@@ -218,6 +222,13 @@ def chat(request: ChatRequest):
 
 @app.post("/decomp")
 def chat(request: ChatRequest):
+    # Create a knowledge graph entry first
+    graph_id = create_graph(
+        engine,
+        user_id=request.user_id,
+        name=f"Graph for {request.prompt}"  # Using the prompt as graph name
+    )
+
     response = decomp_agent.create_turn(
         messages=[{"role": "user", "content": request.prompt}],
         session_id=decomp_session_id,
@@ -226,39 +237,40 @@ def chat(request: ChatRequest):
 
     output = ""
     for log in AgentEventLogger().log(response):
-        #print(vars(log))
         if log.role == "inference":
             continue
         output += str(log)
 
     try:
         parsed = json.loads(output)
-        return {"data": parsed}
+        # Pass the graph_id to create_topic_hierarchy
+        create_topic_hierarchy(engine, graph_id, parsed)
+        print(graph_id)
+        return {
+            "graph_id": graph_id,
+            "data": parsed
+        }
     except json.JSONDecodeError:
         return {"error": "Could not parse response as JSON", "raw": output}
     
 
-@app.post("/upload-pdf")
-async def upload_pdf(file: UploadFile = File(...)):
-    contents = await file.read()
-    extracted_text = extract_text_from_pdf(contents)
-    prompt = f"Summarize this:\n{extracted_text}"
+# @app.post("/upload-pdf")
+# async def upload_pdf(file: UploadFile = File(...)):
+#     contents = await file.read()
+#     extracted_text = extract_text_from_pdf(contents)
+#     prompt = f"Summarize this:\n{extracted_text}"
 
-    response = tutor_agent.create_turn(
-        messages=[{"role": "user", "content": prompt}],
-        session_id=tutor_session_id,
-        stream=True,
-    )
+#     response = tutor_agent.create_turn(
+#         messages=[{"role": "user", "content": prompt}],
+#         session_id=tutor_session_id,
+#         stream=True,
+#     )
 
-    def stream():
-        for log in AgentEventLogger().log(response):
-            yield str(log).strip()
+#     def stream():
+#         for log in AgentEventLogger().log(response):
+#             yield str(log).strip()
 
-    return StreamingResponse(stream(), media_type="text/plain")
-
-
-engine = sa.create_engine("sqlite:///./test.db", connect_args={"check_same_thread": False})
-conn = engine.connect()
+#     return StreamingResponse(stream(), media_type="text/plain")
 
 @app.post("/createuser")
 def api_create_user(user: UserCreate):
@@ -268,4 +280,23 @@ def api_create_user(user: UserCreate):
         email=user.email,
         hashed_password=user.password  # Note: In production, you should hash this!
     )
+    user_id = str(user_id)
+    print(user_id)
     return {"user_id": user_id, "username": user.username}
+
+@app.get("/getuser")
+def api_get_user(username: str):
+    user = get_user_by_username(engine, username)
+    if user:
+        return {"user_id": user["id"], "username": user["username"], "email": user["email"]}
+    else:
+        return {"error": "User not found"}
+    
+@app.get("/getgraph")
+def api_get_graph(graph_id: str):
+    graphs = get_graph_by_id(engine, graph_id)
+    if graphs:
+        return {"graphs": graphs}
+    else:
+        return {"error": "No graphs found for this id"}
+

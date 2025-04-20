@@ -29,7 +29,7 @@ topic_table = sa.Table(
     "topics",
     metadata,
     sa.Column("id", sa.String(36), primary_key=True, default=lambda: str(uuid.uuid4())),
-    sa.Column("graph_id", sa.String(36), sa.ForeignKey("knowledge_graphs.id"), nullable=False),
+    sa.Column("graph_id", sa.String(36), sa.ForeignKey("users.id"), nullable=False),
     sa.Column("name", sa.String(100), nullable=False),
     sa.Column("description", sa.Text),
 )
@@ -38,6 +38,7 @@ topic_connection_table = sa.Table(
     "topic_connections",
     metadata,
     sa.Column("id", sa.String(36), primary_key=True, default=lambda: str(uuid.uuid4())),
+    sa.Column("graph_id", sa.String(36), sa.ForeignKey("users.id"), nullable=False),
     sa.Column("from_topic_id", sa.String(36), sa.ForeignKey("topics.id"), nullable=False),
     sa.Column("to_topic_id", sa.String(36), sa.ForeignKey("topics.id"), nullable=False),
 )

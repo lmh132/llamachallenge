@@ -2,6 +2,7 @@ import uuid
 from sqlalchemy import insert, select, update, delete
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
+import sqlalchemy as sa
 from tables import (
     user_table, knowledge_graph_table, topic_table,
     topic_connection_table, user_knowledge_table, upload_table
@@ -94,3 +95,157 @@ def get_user_knowledge(engine: Engine, user_id: str):
     stmt = select(user_knowledge_table).where(user_knowledge_table.c.user_id == user_id)
     with engine.connect() as conn:
         return [dict(row) for row in conn.execute(stmt).fetchall()]
+
+# --- Topic Hierarchy ---
+def create_topic_hierarchy(engine: Engine, graph_id: str, topic_dict: dict):
+    """Creates topics and their connections from a dictionary of prerequisite -> dependent topics"""
+    topic_ids = {}
+    
+    with engine.begin() as conn:
+        # Create topics
+        for prereq_topic, dependent_topic in topic_dict.items():
+            # Create prerequisite topic if it doesn't exist
+            if prereq_topic not in topic_ids:
+                stmt = select(topic_table).where(topic_table.c.name == prereq_topic)
+                topic = conn.execute(stmt).first()
+                if not topic:
+                    topic_id = str(uuid.uuid4())
+                    stmt = insert(topic_table).values(
+                        id=topic_id,
+                        graph_id=graph_id,  # Changed from user_id to graph_id
+                        name=prereq_topic,
+                        description=None
+                    )
+                    conn.execute(stmt)
+                    topic_ids[prereq_topic] = topic_id
+                else:
+                    topic_ids[prereq_topic] = topic.id
+
+            # Create dependent topic if it doesn't exist and isn't "ROOT"
+            if dependent_topic != "ROOT" and dependent_topic not in topic_ids:
+                stmt = select(topic_table).where(topic_table.c.name == dependent_topic)
+                topic = conn.execute(stmt).first()
+                if not topic:
+                    topic_id = str(uuid.uuid4())
+                    stmt = insert(topic_table).values(
+                        id=topic_id,
+                        graph_id=graph_id,  # Changed from user_id to graph_id
+                        name=dependent_topic,
+                        description=None
+                    )
+                    conn.execute(stmt)
+                    topic_ids[dependent_topic] = topic_id
+                else:
+                    topic_ids[dependent_topic] = topic.id
+
+        # Create connections
+        for prereq_topic, dependent_topic in topic_dict.items():
+            if dependent_topic != "ROOT":
+                stmt = select(topic_connection_table).where(
+                    sa.and_(
+                        topic_connection_table.c.from_topic_id == topic_ids[prereq_topic],
+                        topic_connection_table.c.to_topic_id == topic_ids[dependent_topic]
+                    )
+                )
+                if not conn.execute(stmt).first():
+                    stmt = insert(topic_connection_table).values(
+                        id=str(uuid.uuid4()),
+                        graph_id=graph_id,  # Changed from user_id to graph_id
+                        from_topic_id=topic_ids[prereq_topic],
+                        to_topic_id=topic_ids[dependent_topic]
+                    )
+                    conn.execute(stmt)
+
+    return topic_ids
+
+def get_graph_by_id(engine: Engine, graph_id: str):
+    """
+    Retrieves all topics and their connections for a given graph.
+    Returns a dictionary with 'nodes' and 'edges' lists.
+    """
+    # Get all topics (nodes) for the graph
+    topics_stmt = select(
+        topic_table.c.id,
+        topic_table.c.name,
+        topic_table.c.description,
+        topic_table.c.graph_id
+    ).where(topic_table.c.graph_id == graph_id)
+    
+    # Get all connections (edges) for the graph
+    connections_stmt = select(
+        topic_connection_table.c.id,
+        topic_connection_table.c.from_topic_id,
+        topic_connection_table.c.to_topic_id,
+        topic_connection_table.c.graph_id
+    ).where(topic_connection_table.c.graph_id == graph_id)
+    
+    with engine.connect() as conn:
+        # Fetch nodes
+        nodes = [
+            {
+                "id": row.id,
+                "name": row.name,
+                "description": row.description,
+                "graph_id": row.graph_id
+            }
+            for row in conn.execute(topics_stmt).fetchall()
+        ]
+        
+        # Fetch edges
+        edges = [
+            {
+                "id": row.id,
+                "from_topic_id": row.from_topic_id,
+                "to_topic_id": row.to_topic_id,
+                "graph_id": row.graph_id
+            }
+            for row in conn.execute(connections_stmt).fetchall()
+        ]
+        
+        return {
+            "nodes": nodes,
+            "edges": edges
+        }
+
+def get_user_knowledge_graph(engine: Engine, graph_id: str):
+    """
+    Retrieves all topics and their connections for a given graph.
+    Returns a dictionary with 'nodes' and 'edges' lists.
+    """
+    # Get all topics (nodes) for the graph
+    topics_stmt = select(topic_table).where(topic_table.c.graph_id == graph_id)
+    
+    # Get all connections (edges) for the graph
+    connections_stmt = select(topic_connection_table).where(
+        topic_connection_table.c.graph_id == graph_id
+    )
+    
+    with engine.connect() as conn:
+        # Fetch nodes
+        topics_result = conn.execute(topics_stmt)
+        nodes = [
+            {
+                "id": row.id,
+                "name": row.name,
+                "description": row.description,
+                "graph_id": row.graph_id
+            }
+            for row in topics_result.fetchall()
+        ]
+        
+        # Fetch edges
+        connections_result = conn.execute(connections_stmt)
+        edges = [
+            {
+                "id": row.id,
+                "from_topic_id": row.from_topic_id,
+                "to_topic_id": row.to_topic_id,
+                "graph_id": row.graph_id
+            }
+            for row in connections_result.fetchall()
+        ]
+        
+        return {
+            "nodes": nodes,
+            "edges": edges
+        }
