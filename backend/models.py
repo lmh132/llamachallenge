@@ -1,4 +1,4 @@
-from backend.database import Base
+from database import Base
 
 from sqlalchemy import (
     Column, String, Text, ForeignKey, DateTime, Enum as SQLEnum, Integer, CheckConstraint,
@@ -9,6 +9,10 @@ from sqlalchemy.orm import relationship
 import uuid
 
 # User model
+class Test(Base):  
+    __tablename__ = 'test'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(50), nullable=False)
 class User(Base):
     __tablename__ = 'users'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -85,9 +89,11 @@ class UserKnowledge(Base):
 class Upload(Base):
     __tablename__ = 'uploads'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String(100), nullable=False)
+    description = Column(Text)
+    tag = Column(String(50))
     graph_id = Column(UUID(as_uuid=True), ForeignKey('knowledge_graphs.id'), nullable=False)
     file_path = Column(String(255), nullable=False)
-    ocr_text = Column(Text)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
