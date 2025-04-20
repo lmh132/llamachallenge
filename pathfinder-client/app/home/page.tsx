@@ -20,7 +20,10 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
 import { AuthContext } from "@/contexts/AuthContext"
+import { createGraph } from "@/utils/authAPI"
+import { Graph } from "@/contexts/AuthContext"
 // Sample data for graphs
+/** 
 const initialGraphs = [
   {
     id: 1,
@@ -64,12 +67,12 @@ const initialGraphs = [
     tags: ["Marketing", "Campaign", "Results"],
     date: "2024-03-25",
   },
-]
+] **/
 
 // Get all unique tags from the graphs
 
 export default function Home() {
-  const { logout, graphs, addGraph } = useContext(AuthContext);
+  const { logout, graphs, addGraph, user } = useContext(AuthContext);
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
@@ -80,9 +83,11 @@ export default function Home() {
   const [newGraphTags, setNewGraphTags] = useState<string[]>([])
   const [newTagInput, setNewTagInput] = useState("")
   const router = useRouter()
+  
 
-  // Get all unique tags from the graphs
-  const allTags = Array.from(new Set(graphs.flatMap((graph) => graph.tags)))
+
+  const allTags = graphs ? 
+  Array.from(new Set(graphs.map((graph : Graph) => graph.tags).flat() || [])) : [];
 
   const handleToggleTag = (tag: string) => {
     setSelectedTags(prev => 
@@ -114,14 +119,20 @@ export default function Home() {
     router.push('/login')
   }
 
-  const handleCreateGraph = () => {
-    const newGraph = {
+  const handleCreateGraph = async () => {
+    const ogGraph = {
       title: newGraphTitle,
       image: "/placeholder.svg?height=200&width=300",
       tags: newGraphTags,
     };
     
-    addGraph(newGraph);
+    const newGraph = await createGraph({
+      user_id: user?.uid,
+      name: newGraphTitle,
+      topic: newGraphDescription,
+      tags: "asdfasdf",
+    }); //fix
+    addGraph(ogGraph, newGraph.graph_id); //fix
     
     setNewGraphTitle("");
     setNewGraphDescription("");
@@ -129,8 +140,8 @@ export default function Home() {
     setNewGraphTags([]);
     setNewTagInput("");
     
-    const newGraphId = Math.max(...graphs.map(g => g.id)) + 1;
-    router.push(`/create/${newGraphId}`);
+    //const newGraphId = Math.max(...graphs.map(g => g.id)) + 1;
+    router.push(`/create/${newGraph.graph_id}`);
   }
 
   return (

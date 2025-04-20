@@ -12,9 +12,10 @@ import {
 } from 'firebase/auth';
 import { auth } from '../firebase/firebaseconfig.js';
 import { useRouter } from 'next/navigation';
+import { getGraphs, login, signup } from '../utils/authAPI';
 
-interface Graph {
-  id: number;
+export interface Graph {
+  id: string;
   title: string;
   image: string;
   tags: string[];
@@ -25,18 +26,19 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   graphs: Graph[];
-  addGraph: (graph: Omit<Graph, "id" | "date">) => void;
-  updateGraph: (id: number, graph: Partial<Graph>) => void;
-  deleteGraph: (id: number) => void;
+  addGraph: (graph: Omit<Graph, "id" | "date">, id: string) => void;
+  updateGraph: (id: string, graph: Partial<Graph>) => void;
+  deleteGraph: (id: string) => void;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, education: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 // Initial graphs data
+/** 
 const initialGraphs = [
   {
-    id: 1,
+    id: ,
     title: "Monthly Revenue Analysis",
     image: "/placeholder.svg?height=200&width=300",
     tags: ["Finance", "Revenue", "Monthly"],
@@ -77,7 +79,7 @@ const initialGraphs = [
     tags: ["Marketing", "Campaign", "Results"],
     date: "2024-03-25",
   },
-];
+]; */
 
 export const AuthContext = createContext<AuthContextType>({
   user: null,
@@ -94,30 +96,47 @@ export const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [graphs, setGraphs] = useState<Graph[]>(initialGraphs);
+  const [graphs, setGraphs] = useState<Graph[]>([]);
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
+    const fetchData = async () => {
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        setUser(user);
+        const data = await getGraphs(user?.uid!);
+        console.log(data);
+        if (data.error){
+          setGraphs([]);
+        }
+        else{
+          console.log(data.graphs)
+          setGraphs(data.graphs);
+        }
+        setGraphs(graphs.map((graph) => ({
+          ...graph,
+          title: graph.name,
+        })))
+        console.log(graphs);
+        setLoading(false);
+      });
 
-    return () => unsubscribe();
+      return () => unsubscribe();
+    };
+
+    fetchData();
   }, []);
 
-  const addGraph = (newGraph: Omit<Graph, "id" | "date">) => {
+  const addGraph = (newGraph: Omit<Graph, "id" | "date">, id : string) => {
     setGraphs(currentGraphs => {
-      const nextId = Math.max(...currentGraphs.map(g => g.id), 0) + 1;
       return [{
         ...newGraph,
-        id: nextId,
+        id,
         date: new Date().toISOString().split('T')[0]
       }, ...currentGraphs];
     });
   };
 
-  const updateGraph = (id: number, updates: Partial<Graph>) => {
+  const updateGraph = (id: string, updates: Partial<Graph>) => {
     setGraphs(currentGraphs =>
       currentGraphs.map(graph =>
         graph.id === id ? { ...graph, ...updates } : graph
@@ -125,13 +144,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const deleteGraph = (id: number) => {
+  const deleteGraph = (id: string) => {
     setGraphs(currentGraphs => currentGraphs.filter(graph => graph.id !== id));
   };
 
   const signIn = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      await login(auth.currentUser?.uid!);
       router.push('/home');
     } catch (error) {
       throw error;
@@ -141,6 +161,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string, education: string) => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
+      await signup({
+        uid: auth.currentUser?.uid,
+        username: auth.currentUser?.email,
+        email: auth.currentUser?.email,
+        password: "asdfasdf"
+
+      })
       router.push('/home');
     } catch (error) {
       throw error;
