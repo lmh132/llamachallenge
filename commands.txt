@@ -1,8 +1,12 @@
 ollama run llama3.2:3b --keepalive 60m
 <<<<<<< HEAD
 INFERENCE_MODEL=llama3.2:3b uv run --with llama-stack llama stack build --template ollama --image-type venv --run
+=======
+<<<<<<< HEAD
+INFERENCE_MODEL=llama3.2:3b uv run --with llama-stack llama stack build --template ollama --image-type venv --run
 uv run --with llama-stack-client demo_script.py
 curl -N "http://localhost:8000/chat" -H "Content-Type: application/json" -d '{"user_id":"test_user", "prompt":"What is an electric dipole"}'
 =======
 INFERENCE_MODEL=llama3.2:3b uv run --with llama-stack llama stack build --template ollama --image-type venv --run
 >>>>>>> b3146dc4cada45dc74ac76200f2f916ccd2d69c0
+>>>>>>> b7c1a30f3483eaa1c9a29affe36730517c049e0c
