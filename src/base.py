@@ -1,9 +1,20 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from llama_stack_client import Agent, AgentEventLogger, RAGDocument, LlamaStackClient
 from llama_stack_client.types import Model
-import threading
+import fitz  # PyMuPDF
+import io
+import pdfplumber
+
+def extract_text_from_pdf(bytes_data: bytes) -> str:
+    text = ""
+    with pdfplumber.open(io.BytesIO(bytes_data)) as pdf:
+        for page in pdf.pages:
+            text += page.extract_text() or ""
+            text += "\n"
+    return text
+
 
 # --- Constants ---
 BASE_URL = "http://localhost:8321"
@@ -72,7 +83,7 @@ def create_session():
 def startup():
     initialize_models()
     setup_vector_db()
-    #ingest_document()
+    ingest_document()
     create_agent()
     create_session()
 
@@ -93,8 +104,26 @@ def chat(request: ChatRequest):
     def stream():
         for log in AgentEventLogger().log(response):
             line = str(log).strip()
-
             yield line
 
+    return StreamingResponse(stream(), media_type="text/plain")
+
+
+
+@app.post("/upload-pdf")
+async def upload_pdf(file: UploadFile = File(...)):
+    contents = await file.read()
+    extracted_text = extract_text_from_pdf(contents)
+    prompt = f"Summarize this:\n{extracted_text}"
+
+    response = agent.create_turn(
+        messages=[{"role": "user", "content": prompt}],
+        session_id=session_id,
+        stream=True,
+    )
+
+    def stream():
+        for log in AgentEventLogger().log(response):
+            yield str(log).strip()
 
     return StreamingResponse(stream(), media_type="text/plain")
